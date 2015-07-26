@@ -53,6 +53,7 @@ public class SimpleGazetteerExtractor implements EntityDocumentProcessor {
 
     static final ImmutableMap<String, String> type_label_map =
         new ImmutableMap.Builder<String,String>()
+        .put("Q3231690", "car_model")
         .put("Q55488", "railway_station")
         .put("Q35127", "website")
         .put("Q11424", "film")
