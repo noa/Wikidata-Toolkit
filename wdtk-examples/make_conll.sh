@@ -11,7 +11,9 @@
                --exclude non_profit \
                --exclude company \
                --exclude organization \
-               --shuffle \
+               --train-min 100 \
+               --train-max 800 \
+               --train-incr 100 \
                --dev 100 \
                --test 100
 

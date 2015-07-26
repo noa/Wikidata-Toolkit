@@ -6,6 +6,7 @@ import os
 import sys
 import collections
 import random
+import copy
 
 NO_TYPE_LIMIT = float('inf')
 
@@ -18,9 +19,11 @@ def get_args():
     parser.add_argument('--shuffle', action='store_true')
     parser.add_argument('--min-count', required=True, type=int)
     parser.add_argument('--exclude', action='append', type=str, default=[])
-    parser.add_argument('--train', type=int, default=NO_TYPE_LIMIT)
-    parser.add_argument('--dev', type=int, default=NO_TYPE_LIMIT)
-    parser.add_argument('--test', type=int, default=NO_TYPE_LIMIT)
+    parser.add_argument('--train-min', type=int)
+    parser.add_argument('--train-max', type=int)
+    parser.add_argument('--train-incr', type=int)
+    parser.add_argument('--dev', type=int)
+    parser.add_argument('--test', type=int)
     args = parser.parse_args()
     return args
 
@@ -68,10 +71,17 @@ def process_gaz(type_set, args):
     #    random.seed(42)
     #    random.shuffle(names)
 
-    # Write output files
-    write_names(args.output_prefix+"_dev.txt", names, args.dev)
-    write_names(args.output_prefix+"_test.txt", names, args.test)
-    write_names(args.output_prefix+"_train.txt", names, args.train)
+    # Write dev and test
+    if args.dev:
+        write_names(args.output_prefix+"_dev.txt", names, args.dev)
+    if args.test:
+        write_names(args.output_prefix+"_test.txt", names, args.test)
+
+    curr_size = args.train_min
+    while curr_size < args.train_max:
+        names_copy = copy.deepcopy(names)
+        write_names(args.output_prefix+"_train_" + str(curr_size) + ".txt", names_copy, curr_size)
+        curr_size += args.train_incr
 
 def read_counts(inpath):
     ret = dict()
