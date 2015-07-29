@@ -33,6 +33,7 @@ def write_name(out, name, name_type):
     for token in tokens:
         out.write(token + " " + out_name_type + "\n")
         out_name_type = "I-" + name_type
+    out.write("\n")
 
 def write_names(outpath, name_dict, max_per_type = NO_TYPE_LIMIT):
     out = codecs.open(outpath, 'w', 'utf-8')
@@ -78,7 +79,7 @@ def process_gaz(type_set, args):
         write_names(args.output_prefix+"_test.txt", names, args.test)
 
     curr_size = args.train_min
-    while curr_size < args.train_max:
+    while curr_size <= args.train_max:
         names_copy = copy.deepcopy(names)
         write_names(args.output_prefix+"_train_" + str(curr_size) + ".txt", names_copy, curr_size)
         curr_size += args.train_incr

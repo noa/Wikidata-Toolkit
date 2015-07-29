@@ -11,7 +11,7 @@
                --exclude non_profit \
                --exclude company \
                --exclude organization \
-               --train-min 100 \
+               --train-min 200 \
                --train-max 800 \
                --train-incr 100 \
                --dev 100 \
