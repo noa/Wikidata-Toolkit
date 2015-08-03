@@ -2,8 +2,8 @@
 
 ./gaz2conll.py --gaz results/wikidatawiki-20150720/en_gazetteer.txt \
                --counts results/wikidatawiki-20150720/en_gazetteer_counts.txt \
-               --output-prefix wikidata \
-               --min-count 1000 \
+               --output-prefix datasets/wikidata \
+               --min-count 3000 \
                --exclude event \
                --exclude cathedral \
                --exclude rock_band \
@@ -11,10 +11,10 @@
                --exclude non_profit \
                --exclude company \
                --exclude organization \
-               --train-min 200 \
-               --train-max 800 \
-               --train-incr 100 \
-               --dev 100 \
-               --test 100
+               --train-min 500 \
+               --train-max 2500 \
+               --train-incr 500 \
+               --dev 250 \
+               --test 250
 
 # eof

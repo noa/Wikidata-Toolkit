@@ -49,6 +49,8 @@ def write_names(outpath, name_dict, max_per_type = NO_TYPE_LIMIT):
     for t in c:
         total += c[t]
     print('wrote ' + str(total) + ' names to ' + outpath)
+    for t in c:
+        print(str(c[t]) + ' ' + t)
     out.close()
 
 def process_gaz(type_set, args):
@@ -94,9 +96,24 @@ def read_counts(inpath):
         ret[t] = c
     return ret
 
+def get_counts(inpath, include_aliases):
+    names = collections.defaultdict(set)
+    for line in open(inpath, 'r'):
+        tokens = line.rstrip().split('\t')
+        tag = tokens[2]
+        if include_aliases:
+            for token in tokens[3:]:
+                names[tag].add(token)
+        else:
+            names[tag].add(tokens[3])
+    ret = collections.defaultdict(int)
+    for t in names:
+        ret[t] = len(names[t])
+    return ret
+
 def get_type_set(counts, min_c, exclude_set):
     ret = set()
-    for k, v in counts.iteritems():
+    for k, v in counts.items():
         if v >= min_c and not k in exclude_set:
             ret.add(k)
     return ret
@@ -106,10 +123,10 @@ def print_types(type_set, counts):
     for t in type_set:
         print(t + " : " + str(counts[t]))
 
-
 def main():
     args = get_args()
-    counts = read_counts(args.counts)
+    #counts = read_counts(args.counts)
+    counts = get_counts(args.gaz, args.aliases)
     type_set = get_type_set(counts, args.min_count, set(args.exclude))
     print_types(type_set, counts)
     process_gaz(type_set, args)
