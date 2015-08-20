@@ -1,25 +1,5 @@
 package org.wikidata.wdtk.examples;
 
-/*
- * #%L
- * Wikidata Toolkit Examples
- * %%
- * Copyright (C) 2014 - 2015 Wikidata Toolkit Developers
- * %%
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- *      http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * #L%
- */
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -97,7 +77,7 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
 
     public PersonAttributeExtractor() {
         language_codes.add("en");
-        target_id_value = Datamodel.makeWikidataItemIdValue();
+        target_id_value = Datamodel.makeWikidataItemIdValue(target_type);
     }
 
     public static void main(String[] args) throws IOException {
@@ -125,16 +105,10 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
         }
         this.nprocessed++;
 
-        Map<String, String> attributes = Maps.newHashMap();
+        Map<String, List<String>> attributes = Maps.newHashMap();
 
         for (StatementGroup sg : itemDocument.getStatementGroups()) {
             EntityIdValue subject = sg.getSubject();
-            if(inlinks.containsKey(subject.getId())) {
-                inlinks.put(subject.getId(), inlinks.get(subject.getId())+1);
-            } else {
-                inlinks.put(subject.getId(), new Long(1));
-            }
-
             switch (sg.getProperty().getId()) {
             case "P31": // P31 is "instance of"
                 boolean match = matchSet(sg, Sets.newHashSet(target_id_value));
@@ -144,9 +118,17 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
                 //break; // we've found a person!
             }
             String property_id = sg.getProperty().getId();
-            for(String key : per_attr_label_map) {
+            for(String key : per_attr_label_map.keySet()) {
                 if(property_id == key) {
                     //attributes.put();
+                	for(Statement s : sg.getStatements()) {
+                        // Find the main claim and check if it has a value
+                        if (s.getClaim().getMainSnak() instanceof ValueSnak) {
+                            Value v = ((ValueSnak) s.getClaim().getMainSnak()).getValue();
+                            // Check if the value is an ItemIdValue
+                            
+                        }
+                	}
                 }
             }
         }
@@ -154,10 +136,10 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
         Map<String, MonolingualTextValue> labels = itemDocument.getLabels();
 
         // If this entry doesn't have an English name, move on
-        if ( !labels.containsKey("en") ) continue;
+        if ( !labels.containsKey("en") ) return;
         String name = labels.get("en").getText();
         SiteLink link = itemDocument.getSiteLinks().get("enwiki");
-        if (link == null) continue;
+        if (link == null) return;
         PersonEntry entry = new PersonEntry(itemDocument.getItemId(),
                                             name,
                                             itemDocument.getAliases().get("en"),
@@ -165,7 +147,6 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
                                             link);
         per_entries.add(entry);
     }
-}
 
 @Override
     public void processPropertyDocument(PropertyDocument propertyDocument) {
@@ -176,27 +157,15 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
      * Prints the current status to the system output.
      */
     private void printStatus() {
-        for(String code : Arrays.asList("en") {
+        for(String code : Arrays.asList("en")) {
             int size = per_entries.size();
-            String label = PersonAttributeExtractor.type_label_map.get(key);
-            assert( label != null );
-            if(label == null) {
-                System.out.println("Missing key: " + key);
-                System.exit(1);
-            }
-            System.out.println(code + " " + label + " " + size);
+            System.out.println("number of PER = " + size);
         }
     }
 
-    public void printPersonEntries(PrintStream out,
-                                   ArrayList<PersonEntry> gaz,
-                                   String label) {
-        for(PersonEntry entry : entry) {
-            long ninlinks = 0;
-            if(inlinks.containsKey(entry.id.getId())) {
-                ninlinks = inlinks.get(entry.id.getId());
-            }
-            out.print(entry.id.getId() + "\t" + ninlinks + "\t" + label + "\t" + entry.name);
+    public void printPersonEntries(PrintStream out, ArrayList<PersonEntry> gaz) {
+        for(PersonEntry entry : per_entries) {
+            out.print(entry.id.getId() + "\t" + entry.name);
             if(entry.aliases != null) {
                 for(MonolingualTextValue a : entry.aliases) {
                     out.print("\t" + a.getText());
@@ -212,10 +181,8 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
         for(String code : language_codes) {
             // Print the gazetteer
             try (PrintStream out = new PrintStream(ExampleHelpers.openExampleFileOuputStream(code + "_person_entries.txt"))) {
-
-                for(String key : gaz_entries.keySet()) {
-                    printGaz(out, gaz_entries.get(key), SimpleGazetteerExtractor.type_label_map.get(key));
-                }
+                
+                printPersonEntries(out, per_entries);
 
             } catch (IOException e) {
                 e.printStackTrace();
