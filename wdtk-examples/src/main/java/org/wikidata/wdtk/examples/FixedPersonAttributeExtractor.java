@@ -9,9 +9,9 @@ package org.wikidata.wdtk.examples;
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,6 +32,7 @@ import java.util.Set;
 
 import org.wikidata.wdtk.datamodel.helpers.Datamodel;
 import org.wikidata.wdtk.datamodel.interfaces.EntityDocumentProcessor;
+import org.wikidata.wdtk.datamodel.interfaces.EntityDocument;
 import org.wikidata.wdtk.datamodel.interfaces.EntityIdValue;
 import org.wikidata.wdtk.datamodel.interfaces.ItemDocument;
 import org.wikidata.wdtk.datamodel.interfaces.ItemIdValue;
@@ -47,6 +48,8 @@ import org.wikidata.wdtk.datamodel.interfaces.Statement;
 import org.wikidata.wdtk.datamodel.interfaces.StatementGroup;
 import org.wikidata.wdtk.datamodel.interfaces.Value;
 import org.wikidata.wdtk.datamodel.interfaces.ValueSnak;
+
+import org.wikidata.wdtk.wikibaseapi.WikibaseDataFetcher;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
@@ -65,18 +68,19 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
 
     static final ImmutableMap<String, String> per_attr =
         new ImmutableMap.Builder<String,String>()
-        .put("P172", "ethnic_group")
-        .put("P140", "religion")
+        //.put("P172", "ethnic_group")
+        //.put("P140", "religion")
         .put("P21",  "sex_or_gender")
-        .put("P103", "native_language")
-        .put("P27",  "country_of_citizenship")
+        //.put("P103", "native_language")
+        //.put("P27",  "country_of_citizenship") // not really predictive
         .put("P19", "place_of_birth") // requires an additional hop to fetch country
         .build();
 
     static final ImmutableSet<String> required_attrs =
         new ImmutableSet.Builder<String>()
         .add("P21")
-        .add("P27")
+        //.add("P27")
+        .add("P19")
         .build();
 
     class PersonEntry {
@@ -112,11 +116,13 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                 // }
             //}
 
-            for(String key : PersonAttributeExtractor.per_attr.keySet()) {
+            for(String key : FixedPersonAttributeExtractor.per_attr.keySet()) {
                 if(this.attributes.containsKey(key)) {
                     String val = this.attributes.get(key);
                     attrs.add(key+"_"+val);
                 } else {
+                    System.out.println("Shouldn't get here");
+                    System.exit(1);
                     attrs.add(key+"_"+MISSING);
                 }
             }
@@ -139,6 +145,11 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
     List<String> language_codes = Lists.newArrayList();
     ArrayList<PersonEntry> per_entries = Lists.newArrayList();
 
+    // place_of_birth to country
+    Map<String,String> place_country = Maps.newHashMap();
+    Map<String,String> country_continent = Maps.newHashMap();
+    WikibaseDataFetcher wbdf;
+
     // # attributes -> freq
     TreeMap<Integer, Integer> attr_counts = Maps.newTreeMap();
     TreeMap<String, Integer> uni_attr_counts = Maps.newTreeMap();
@@ -146,6 +157,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
     public FixedPersonAttributeExtractor() {
         language_codes.add("en");
         target_id_value = Datamodel.makeWikidataItemIdValue(target_type);
+        wbdf = new WikibaseDataFetcher();
     }
 
     public static void main(String[] args) throws IOException {
@@ -164,6 +176,84 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
         return false;
     }
 
+    public String getCountryContinent(String key) {
+
+        //String key = ((ItemDocument) itemDocument).getLabels().get("en").getText();
+
+        if(country_continent.containsKey(key)) {
+            return country_continent.get(key);
+        }
+
+        ItemDocument itemDocument = null;
+        try {
+            EntityDocument ed = wbdf.getEntityDocument(key);
+            if (ed == null || !(ed instanceof ItemDocument)) {
+                return null;
+            }
+            itemDocument = (ItemDocument)ed;
+        } catch(Exception e) {
+            return null;
+        }
+
+        for (StatementGroup sg : itemDocument.getStatementGroups()) {
+            String property_id = sg.getProperty().getId();
+            if(property_id.equals("P30")) { // continent
+                for(Statement s : sg.getStatements()) {
+                    if (s.getClaim().getMainSnak() instanceof ValueSnak) {
+                        Value v = ((ValueSnak) s.getClaim().getMainSnak()).getValue();
+                        if(v instanceof EntityIdValue) {
+                            EntityIdValue idv = (EntityIdValue)v;
+                            String id = idv.getId();
+                            System.out.println("\tContinent = " + id);
+                            country_continent.put(key, id);
+                            return id;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public String getPlaceCountry(String key) {
+
+        //String key = ((ItemDocument) itemDocument).getLabels().get("en").getText();
+
+        if(place_country.containsKey(key)) {
+            return country_continent.get(key);
+        }
+
+        ItemDocument itemDocument = null;
+        try {
+            EntityDocument ed = wbdf.getEntityDocument(key);
+            if (ed == null || !(ed instanceof ItemDocument)) {
+                return null;
+            }
+            itemDocument = (ItemDocument)ed;
+        } catch(Exception e) {
+            return null;
+        }
+
+        for (StatementGroup sg : itemDocument.getStatementGroups()) {
+            String property_id = sg.getProperty().getId();
+            if(property_id.equals("P17")) { // country
+                for(Statement s : sg.getStatements()) {
+                    if (s.getClaim().getMainSnak() instanceof ValueSnak) {
+                        Value v = ((ValueSnak) s.getClaim().getMainSnak()).getValue();
+                        if(v instanceof EntityIdValue) {
+                            EntityIdValue idv = (EntityIdValue)v;
+                            String id = idv.getId();
+                            System.out.println("\tCountry = " + id);
+                            place_country.put(key, id);
+                            return id;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     public void processItemDocument(ItemDocument itemDocument) {
 
@@ -173,7 +263,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
         }
         this.nprocessed++;
 
-        Map<String, List<String>> attributes = Maps.newTreeMap();
+        Map<String, String> attributes = Maps.newTreeMap();
 
         for (StatementGroup sg : itemDocument.getStatementGroups()) {
             EntityIdValue subject = sg.getSubject();
@@ -181,7 +271,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
             case "P31": // P31 is "instance of"
                 boolean match = matchSet(sg, Sets.newHashSet(target_id_value));
                 if(!match) {
-                    return;
+                    return; // not a person, move on to next item document
                 }
                 //break; // we've found a person!
             }
@@ -198,6 +288,15 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                             // Check if the value is an ItemIdValue
                             if(v instanceof EntityIdValue) {
                                 EntityIdValue idv = (EntityIdValue)v;
+
+                                if(key == "P19") {
+                                    System.out.println("P19 type = " + idv.getEntityType());
+                                    System.out.println("P19 value = " + idv.getId());
+                                    System.out.println("*** Fetching data for one entity:");
+                                    String country = getPlaceCountry(idv.getId());
+                                    String continent = getCountryContinent(country);
+                                }
+
                                 String id = idv.getId();
                                 values.add(id);
                             } else {
@@ -226,7 +325,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
         }
 
         for(String key : attributes.keySet()) {
-            Integer count = uni_attr_counts.get(key);
+            count = uni_attr_counts.get(key);
             if (count == null) {
                 uni_attr_counts.put(key, 1);
             } else {
