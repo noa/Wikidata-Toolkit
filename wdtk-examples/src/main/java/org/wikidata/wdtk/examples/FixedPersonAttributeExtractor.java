@@ -55,51 +55,41 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-public class PersonAttributeExtractor implements EntityDocumentProcessor {
+public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
 
     static final int MIN_ATTRS = 2;
+    static final String MISSING = "NONE";
 
     int nprocessed = 0;
-
-    // static final ImmutableMap<String, String> type_label_map =
-    //     new ImmutableMap.Builder<String,String>()
-    //     .put("Q5", "person")
-    //     .build();
     String target_type = "Q5"; // person
 
-    static final ImmutableMap<String, String> per_attr_label_map =
+    static final ImmutableMap<String, String> per_attr =
         new ImmutableMap.Builder<String,String>()
         .put("P172", "ethnic_group")
         .put("P140", "religion")
-        .put("P410", "military_rank")
         .put("P21",  "sex_or_gender")
-        .put("P27",  "country_of_citizenship")
         .put("P103", "native_language")
-        .put("P166", "award_received")
-        .put("P53", "noble_family")
+        .put("P27",  "country_of_citizenship")
+        .put("P19", "place_of_birth") // requires an additional hop to fetch country
         .build();
 
     static final ImmutableSet<String> required_attrs =
         new ImmutableSet.Builder<String>()
-        .add("P27")
         .add("P21")
+        .add("P27")
         .build();
-
-    // these are entity relations -- different than the attributes above
-    //.put("P25","mother")
-    //.put("P22","father")
 
     class PersonEntry {
         public ItemIdValue id;
         public String name;
         public SiteLink link;
         public List<MonolingualTextValue> aliases;
-        public Map<String,List<String>> attributes;
+        public Map<String,String> attributes;
 
         public PersonEntry(ItemIdValue id,
                            String name,
                            List<MonolingualTextValue> aliases,
-                           Map<String,List<String>> attributes,
+                           Map<String,String> attributes,
                            SiteLink link) {
             this.id = id;
             this.name = name;
@@ -116,9 +106,18 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
             // add the per type
             attrs.add("P31"+"_"+target_type);
 
-            for(String key : this.attributes.keySet()) {
-                for(String val : this.attributes.get(key)) {
+            //for(String key : this.attributes.keySet()) {
+                // for(String val : this.attributes.get(key)) {
+                //     attrs.add(key+"_"+val);
+                // }
+            //}
+
+            for(String key : PersonAttributeExtractor.per_attr.keySet()) {
+                if(this.attributes.containsKey(key)) {
+                    String val = this.attributes.get(key);
                     attrs.add(key+"_"+val);
+                } else {
+                    attrs.add(key+"_"+MISSING);
                 }
             }
 
@@ -126,10 +125,8 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
             for (int i = 0; i < this.name.length(); i++) {
                 char c = this.name.charAt(i);
                 if(c == ' ') {
-                    //symbols.add(new String('_'));
                     symbols.add(Character.toString('_'));
                 } else {
-                    //symbols.add(new String(c));
                     symbols.add(Character.toString(c));
                 }
             }
@@ -144,15 +141,16 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
 
     // # attributes -> freq
     TreeMap<Integer, Integer> attr_counts = Maps.newTreeMap();
+    TreeMap<String, Integer> uni_attr_counts = Maps.newTreeMap();
 
-    public PersonAttributeExtractor() {
+    public FixedPersonAttributeExtractor() {
         language_codes.add("en");
         target_id_value = Datamodel.makeWikidataItemIdValue(target_type);
     }
 
     public static void main(String[] args) throws IOException {
         ExampleHelpers.configureLogging();
-        PersonAttributeExtractor processor = new PersonAttributeExtractor();
+        FixedPersonAttributeExtractor processor = new FixedPersonAttributeExtractor();
         ExampleHelpers.processEntitiesFromWikidataDump(processor);
         processor.writeFinalResults();
     }
@@ -175,7 +173,7 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
         }
         this.nprocessed++;
 
-        Map<String, List<String>> attributes = Maps.newHashMap();
+        Map<String, List<String>> attributes = Maps.newTreeMap();
 
         for (StatementGroup sg : itemDocument.getStatementGroups()) {
             EntityIdValue subject = sg.getSubject();
@@ -188,8 +186,7 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
                 //break; // we've found a person!
             }
             String property_id = sg.getProperty().getId();
-            //System.out.println("property_id = " + property_id);
-            for(String key : per_attr_label_map.keySet()) {
+            for(String key : per_attr.keySet()) {
                 if(property_id.equals(key)) {
                     List<String> values = Lists.newArrayList();
 
@@ -199,9 +196,7 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
                         if (s.getClaim().getMainSnak() instanceof ValueSnak) {
                             Value v = ((ValueSnak) s.getClaim().getMainSnak()).getValue();
                             // Check if the value is an ItemIdValue
-                            // System.out.print(property_id + ": ");
                             if(v instanceof EntityIdValue) {
-                                //System.out.print("Entity_Id_Value ");
                                 EntityIdValue idv = (EntityIdValue)v;
                                 String id = idv.getId();
                                 values.add(id);
@@ -209,22 +204,15 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
                                 System.out.println("unexpected value type");
                                 System.exit(1);
                             }
-                            // if(v instanceof MonolingualTextValue) {
-                            //     System.out.print("Monolingual_Text_Value ");
-                            // }
-                            // if(v instanceof PropertyIdValue) {
-                            //     System.out.print("Property_Id_Value ");
-                            // }
-                            // if(v instanceof QuantityValue) {
-                            //     System.out.print("Quantity_Value ");
-                            // }
-                            // if(v instanceof TimeValue) {
-                            //     System.out.print("Time_Value ");
-                            // }
-                            // System.out.println("");
                         }
                     }
-                    attributes.put(key, values);
+
+                    if(values.size() > 0) {
+                        // if there are multiple values, just take the first
+                        attributes.put(key, values.get(0));
+                    } else {
+                        attributes.put(key, MISSING);
+                    }
                 }
             }
         }
@@ -235,6 +223,15 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
             attr_counts.put(num_attributes, 1);
         } else {
             attr_counts.put(num_attributes, count + 1);
+        }
+
+        for(String key : attributes.keySet()) {
+            Integer count = uni_attr_counts.get(key);
+            if (count == null) {
+                uni_attr_counts.put(key, 1);
+            } else {
+                uni_attr_counts.put(key, count + 1);
+            }
         }
 
         Map<String, MonolingualTextValue> labels = itemDocument.getLabels();
@@ -280,33 +277,26 @@ public class PersonAttributeExtractor implements EntityDocumentProcessor {
                 Integer val = attr_counts.get(key);
                 System.out.println("\t"+key+" : "+val);
             }
+            System.out.println("uni attr counts:");
+            for(String key : uni_attr_counts.keySet()) {
+                Integer val = uni_attr_counts.get(key);
+                System.out.println("\t"+key+" : "+val);
+            }
         }
     }
 
-
     public void printPersonEntries(PrintStream out, ArrayList<PersonEntry> gaz) {
         for(PersonEntry entry : per_entries) {
-            //List<String>
-                //out.print(entry.id.getId() + "\t" + entry.name);
-            // if(entry.aliases != null) {
-            //     for(MonolingualTextValue a : entry.aliases) {
-            //         out.print("\t" + a.getText());
-            //     }
-            // }
-            //out.println(joiner.join(attrs) + "\t" + joiner.join(symbols));
             out.println(entry);
         }
     }
 
     public void writeFinalResults() {
         printStatus();
-
         for(String code : language_codes) {
             // Print the gazetteer
-            try (PrintStream out = new PrintStream(ExampleHelpers.openExampleFileOuputStream(code + "_person_entries.txt"))) {
-
+            try (PrintStream out = new PrintStream(ExampleHelpers.openExampleFileOuputStream(code + "_fixed_person_entries.txt"))) {
                 printPersonEntries(out, per_entries);
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
