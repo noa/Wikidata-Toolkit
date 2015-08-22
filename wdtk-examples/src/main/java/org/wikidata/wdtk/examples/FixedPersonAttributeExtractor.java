@@ -74,13 +74,17 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
         //.put("P103", "native_language")
         //.put("P27",  "country_of_citizenship") // not really predictive
         .put("P19", "place_of_birth") // requires an additional hop to fetch country
+        .put("P735", "given_name")
+        //.put("P734", "family_name")
         .build();
 
     static final ImmutableSet<String> required_attrs =
         new ImmutableSet.Builder<String>()
-        .add("P21")
-        //.add("P27")
-        .add("P19")
+        .add("P21")   // sex or gender
+        .add("Q6256") // country (of birth)
+        .add("Q5107") // continent (of birth)
+        .add("P735")
+        //.add("P734")
         .build();
 
     class PersonEntry {
@@ -116,15 +120,20 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                 // }
             //}
 
-            for(String key : FixedPersonAttributeExtractor.per_attr.keySet()) {
-                if(this.attributes.containsKey(key)) {
-                    String val = this.attributes.get(key);
-                    attrs.add(key+"_"+val);
-                } else {
-                    System.out.println("Shouldn't get here");
-                    System.exit(1);
-                    attrs.add(key+"_"+MISSING);
-                }
+            // for(String key : FixedPersonAttributeExtractor.per_attr.keySet()) {
+            //     if(this.attributes.containsKey(key)) {
+            //         String val = this.attributes.get(key);
+            //         attrs.add(key+"_"+val);
+            //     } else {
+            //         System.out.println("Shouldn't get here");
+            //         System.exit(1);
+            //         attrs.add(key+"_"+MISSING);
+            //     }
+            // }
+
+            for(String key : attributes.keySet()) {
+                String val = attributes.get(key);
+                attrs.add(key+"_"+val);
             }
 
             List<String> symbols = Lists.newArrayList();
@@ -146,6 +155,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
     ArrayList<PersonEntry> per_entries = Lists.newArrayList();
 
     // place_of_birth to country
+    Map<String,String> place_country_continent = Maps.newHashMap();
     Map<String,String> place_country = Maps.newHashMap();
     Map<String,String> country_continent = Maps.newHashMap();
     WikibaseDataFetcher wbdf;
@@ -204,7 +214,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                         if(v instanceof EntityIdValue) {
                             EntityIdValue idv = (EntityIdValue)v;
                             String id = idv.getId();
-                            System.out.println("\tContinent = " + id);
+                            //System.out.println("\tContinent = " + id);
                             country_continent.put(key, id);
                             return id;
                         }
@@ -220,7 +230,8 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
         //String key = ((ItemDocument) itemDocument).getLabels().get("en").getText();
 
         if(place_country.containsKey(key)) {
-            return country_continent.get(key);
+            //return country_continent.get(key);
+            return place_country.get(key);
         }
 
         ItemDocument itemDocument = null;
@@ -243,7 +254,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                         if(v instanceof EntityIdValue) {
                             EntityIdValue idv = (EntityIdValue)v;
                             String id = idv.getId();
-                            System.out.println("\tCountry = " + id);
+                            //System.out.println("\tCountry = " + id);
                             place_country.put(key, id);
                             return id;
                         }
@@ -290,15 +301,19 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                                 EntityIdValue idv = (EntityIdValue)v;
 
                                 if(key == "P19") {
-                                    System.out.println("P19 type = " + idv.getEntityType());
-                                    System.out.println("P19 value = " + idv.getId());
-                                    System.out.println("*** Fetching data for one entity:");
+                                    //System.out.println("P19 type = " + idv.getEntityType());
+                                    //System.out.println("P19 value = " + idv.getId());
+                                    //System.out.println("*** Fetching data for one entity:");
                                     String country = getPlaceCountry(idv.getId());
                                     String continent = getCountryContinent(country);
+                                    if(country != null && continent != null) {
+                                        attributes.put("Q6256", country);
+                                        attributes.put("Q5107", continent);
+                                    }
+                                } else {
+                                    String id = idv.getId();
+                                    values.add(id);
                                 }
-
-                                String id = idv.getId();
-                                values.add(id);
                             } else {
                                 System.out.println("unexpected value type");
                                 System.exit(1);
@@ -310,7 +325,7 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
                         // if there are multiple values, just take the first
                         attributes.put(key, values.get(0));
                     } else {
-                        attributes.put(key, MISSING);
+                        continue;
                     }
                 }
             }
@@ -371,6 +386,8 @@ public class FixedPersonAttributeExtractor implements EntityDocumentProcessor {
         for(String code : Arrays.asList("en")) {
             int size = per_entries.size();
             System.out.println("number of PER = " + size);
+            System.out.println("place_country hash size = " + place_country.size());
+            System.out.println("country_continent hash size = " + country_continent.size());
             System.out.println("attr counts:");
             for(Integer key : attr_counts.keySet()) {
                 Integer val = attr_counts.get(key);
