@@ -66,7 +66,7 @@ if [ ! -d "datasets/min10000_thesis" ]; then
     mkdir datasets/min10000_thesis
     ./gaz2conll.py --gaz results/wikidatawiki-20150720/en_gazetteer.txt \
                    --counts results/wikidatawiki-20150720/en_gazetteer_counts.txt \
-                   --output-prefix datasets/sets/min10000/wikidata \
+                   --output-prefix datasets/min10000_thesis/wikidata \
                    --min-count 10000 \
                    --exclude event \
                    --exclude cathedral \
@@ -81,7 +81,7 @@ if [ ! -d "datasets/min10000_thesis" ]; then
                    --dev 500 \
                    --test 500
 fi
-    
+
 # Fourth dataset 10000 to 22500 train, 1000 dev and test
 if [ ! -d "datasets/min15000" ]; then
     mkdir datasets/min15000
